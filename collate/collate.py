@@ -69,7 +69,7 @@ def prepare_parser():
     parser.add_argument(
         '--command',
         help='Command format collate pdfs, with `output` and `input` variables',
-        default='pdftk cat {input} output {output}'
+        default='pdftk {input} cat output {output}'
     )
     parser.add_argument(
         '-p', '--path',
@@ -102,8 +102,8 @@ def parse_cli():
     try:
         input_path_str = expand_path_data(data, args.path)
     except Exception as exc:
-        print(exc.message)
-        raise SystemError
+        print(str(exc))
+        exit(1)
     result = execute(args.command, input_path_str, args.output)
 
 
