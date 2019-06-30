@@ -27,8 +27,14 @@ def expand_path_rec(path_holder, path_prefix):
         ]
         return [path for path_list in sub_expands for path in path_list]
     if isinstance(path_holder, list):
-        return [path_prefix/path for path in path_holder]
-    raise Exception('Expected dict or list, got {}'.format(type(path_holder)))
+        paths = []
+        for item in path_holder:
+            if isinstance(item, dict):
+                paths.extend(expand_path_rec(item, path_prefix))
+            else:
+                paths.append(path_prefix/item)
+        return paths
+    raise Exception('Expected str, dict or list, got {}'.format(type(path_holder)))
 
 
 def expand_path_data(path_data, path_base):
