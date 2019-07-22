@@ -7,6 +7,7 @@ the directory structure targeted by collation.
 """
 
 import argparse
+import collections
 import json
 import pathlib
 import subprocess
@@ -34,7 +35,9 @@ def expand_path_rec(path_holder, path_prefix):
             else:
                 paths.append(path_prefix/item)
         return paths
-    raise Exception('Expected str, dict or list, got {}'.format(type(path_holder)))
+    raise Exception(
+        'Expected str, dict or list, got {}'.format(type(path_holder))
+    )
 
 
 def expand_path_data(path_data, path_base):
@@ -95,10 +98,12 @@ def parse_cli():
     parser = prepare_parser()
     args = parser.parse_args()
     if args.data:
-        data = json.loads(args.data)
+        data = json.loads(args.data, object_pairs_hook=collections.OrderedDict)
     else:
         with open(args.data_file, 'r') as data_file:
-            data = json.load(data_file)
+            data = json.load(
+                data_file, object_pairs_hook=collections.OrderedDict
+            )
     try:
         input_path_str = expand_path_data(data, args.path)
     except Exception as exc:
