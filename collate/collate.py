@@ -72,7 +72,10 @@ def prepare_parser():
     parser.add_argument(
         '--command',
         help='Command format collate pdfs, with `output` and `input` variables',
-        default='pdftk {input} cat output {output}'
+        default=(
+            'gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dAutoRotatePages=/None'
+            ' -sOutputFile={output}  {input}'
+            )
     )
     parser.add_argument(
         '-p', '--path',
