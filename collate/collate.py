@@ -1,13 +1,12 @@
 """
-A minimalist file collation utility aimed at obscure CLI commands.
+A minimalist PDF file collation utility.
 
 Because Python doesn't have a lot in the way of collating PDFs together,
-this is by default a `pdftk` wrapper that takes a JSON dict representing
+this is by default a GhostScript wrapper that takes a JSON dict representing
 the directory structure targeted by collation.
 """
 
 import argparse
-import collections
 import json
 import pathlib
 import subprocess
@@ -55,30 +54,43 @@ def expand_path_data(path_data, path_base):
         raise Exception(
             'Missing files: \n\t{}'.format('\n\t'.join(errors))
         )
-    return ' '.join(str(path) for path in paths)
+    return paths
 
 
-def execute(template, input_files, output_file):
+def execute(input_files, output_file, papersize):
     """Run the command specified with the correct input/output."""
-    command = template.format(input=input_files, output=output_file)
-    subprocess.run(command)
+    if papersize is not None:
+        papersize = ['-sPAPERSIZE={}'.format(papersize)]
+    else:
+        papersize = []
+
+    command_list = [
+        'gs',
+        '-dBATCH',
+        '-dNOPAUSE',
+        '-q',
+        '-sDEVICE=pdfwrite',
+        '-dAutoRotatePages=/None',
+        '-sOutputFile={output}'.format(output=output_file),
+        '-sPAPERSIZE={papersize}'.format(papersize=papersize),
+        *[str(path) for path in input_files]
+    ]
+    subprocess.run(command_list)
 
 
 def prepare_parser():
     """Prepare the CLI parser."""
     parser = argparse.ArgumentParser(
-        description='Collate PDFs from a directory tree'
+        description='Collate PDFs from a directory description using GS'
     )
     parser.add_argument(
-        '--command',
-        help='Command format collate pdfs, with `output` and `input` variables',
-        default=(
-            'gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dAutoRotatePages=/None'
-            ' -sOutputFile={output}  {input}'
-            )
+        '--papersize',
+        help="""Target paper size for the collated document.
+        This should be a paper size known by GhostScript""",
+        default='a4'
     )
     parser.add_argument(
-        '-p', '--path',
+        '-c', '--context',
         help='Directory tree base path',
         type=pathlib.Path,
         default=pathlib.Path('.')
@@ -96,23 +108,46 @@ def prepare_parser():
     return parser
 
 
+def _pathize(in_data):
+    if isinstance(in_data, str):
+        return pathlib.Path(in_data)
+    if isinstance(in_data, list):
+        return [_pathize(elt) for elt in in_data]
+    if isinstance(in_data, dict):
+        return {
+            pathlib.Path(key): _pathize(value)
+            for key, value in in_data.items()
+        }
+
+
+def load_data(args):
+    if args.data:
+        data = json.loads(
+            args.data,
+            object_hook=_pathize
+        )
+    else:
+        with open(args.data_file, 'r') as data_file:
+            data = json.load(
+                data_file,
+                object_hook=_pathize
+            )
+    return data
+
+
 def parse_cli():
     """Parse the CLI and execute the collation."""
     parser = prepare_parser()
     args = parser.parse_args()
-    if args.data:
-        data = json.loads(args.data, object_pairs_hook=collections.OrderedDict)
-    else:
-        with open(args.data_file, 'r') as data_file:
-            data = json.load(
-                data_file, object_pairs_hook=collections.OrderedDict
-            )
+    data = load_data(args)
+
     try:
-        input_path_str = expand_path_data(data, args.path)
+        input_list = expand_path_data(data, args.context)
     except Exception as exc:
         print(str(exc))
         exit(1)
-    result = execute(args.command, input_path_str, args.output)
+
+    execute(args.command, input_list, args.output)
 
 
 if __name__ == '__main__':
