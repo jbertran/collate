@@ -23,12 +23,12 @@ def expand_path_rec(path_holder, path_prefix):
     """
     if isinstance(path_holder, dict):
         sub_expands = [
-            expand_path_rec(v, path_prefix/k) for k, v in path_holder.items()
+            expand_path_rec(v, path_prefix/pathlib.Path(k)) for k, v in path_holder.items()
         ]
         return [path for path_list in sub_expands for path in path_list]
     if isinstance(path_holder, list):
         paths = []
-        for item in path_holder:
+        for item in (pathlib.Path(p) for p in path_holder):
             if isinstance(item, dict):
                 paths.extend(expand_path_rec(item, path_prefix))
             else:
@@ -59,23 +59,20 @@ def expand_path_data(path_data, path_base):
 
 def execute(input_files, output_file, papersize):
     """Run the command specified with the correct input/output."""
-    if papersize is not None:
-        papersize = ['-sPAPERSIZE={}'.format(papersize)]
-    else:
-        papersize = []
-
-    command_list = [
+    command_args = [
         'gs',
         '-dBATCH',
         '-dNOPAUSE',
         '-q',
         '-sDEVICE=pdfwrite',
         '-dAutoRotatePages=/None',
-        '-sOutputFile={output}'.format(output=output_file),
-        '-sPAPERSIZE={papersize}'.format(papersize=papersize),
-        *[str(path) for path in input_files]
+        '-sOutputFile={output}'.format(output=output_file)
     ]
-    subprocess.run(command_list)
+
+    if papersize is not None:
+        command_args.append('-sPAPERSIZE={}'.format(papersize))
+
+    subprocess.run(command_args + [str(path) for path in input_files])
 
 
 def prepare_parser():
@@ -108,30 +105,14 @@ def prepare_parser():
     return parser
 
 
-def _pathize(in_data):
-    if isinstance(in_data, str):
-        return pathlib.Path(in_data)
-    if isinstance(in_data, list):
-        return [_pathize(elt) for elt in in_data]
-    if isinstance(in_data, dict):
-        return {
-            pathlib.Path(key): _pathize(value)
-            for key, value in in_data.items()
-        }
-
-
 def load_data(args):
     if args.data:
         data = json.loads(
-            args.data,
-            object_hook=_pathize
-        )
+            args.data)
     else:
         with open(args.data_file, 'r') as data_file:
             data = json.load(
-                data_file,
-                object_hook=_pathize
-            )
+                data_file)
     return data
 
 
@@ -141,13 +122,9 @@ def parse_cli():
     args = parser.parse_args()
     data = load_data(args)
 
-    try:
-        input_list = expand_path_data(data, args.context)
-    except Exception as exc:
-        print(str(exc))
-        exit(1)
+    input_list = expand_path_data(data, args.context)
 
-    execute(args.command, input_list, args.output)
+    execute(input_list, args.output, None)
 
 
 if __name__ == '__main__':
